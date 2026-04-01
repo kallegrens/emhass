@@ -39,7 +39,10 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.PAT_TOKEN }}
         run: |
-          # Use the latest commit signature from our fork, not upstream
+          # Perform the rebase of our custom commits on top of upstream master
+          git rebase upstream/master
+          
+          # Use the latest commit signature from our fork after rebase
           FORK_SHA=$(git rev-parse --short HEAD)
           echo "Latest fork commit SHA: $FORK_SHA"
 
@@ -55,11 +58,12 @@ jobs:
           if git ls-remote --tags origin | grep -q -e "$CUSTOM_TAG"; then
             echo "Already synced and released $CUSTOM_TAG. Skipping."
             echo "updated=false" >> $GITHUB_OUTPUT
+            
+            # Ensure branch is pushed if image is skipped
+            git remote set-url origin https://x-access-token:$\{GH_TOKEN\}@github.com/$\{\{ github.repository }}.git
+            git push --force-with-lease origin HEAD
             exit 0
           fi
-
-          # Perform the rebase of our custom commits on top of upstream master
-          git rebase upstream/master
 
           # Set the authenticating URL for the push
           git remote set-url origin https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}.git
