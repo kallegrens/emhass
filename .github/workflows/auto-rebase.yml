@@ -39,17 +39,17 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.PAT_TOKEN }}
         run: |
-          # Find the latest commit sha from upstream master
-          UPSTREAM_SHA=$(git rev-parse --short upstream/master)
-          echo "Latest upstream commit SHA: $UPSTREAM_SHA"
+          # Use the latest commit signature from our fork, not upstream
+          FORK_SHA=$(git rev-parse --short HEAD)
+          echo "Latest fork commit SHA: $FORK_SHA"
 
-          if [[ -z "$UPSTREAM_SHA" ]]; then
-            echo "Failed to find upstream commit"
+          if [[ -z "$FORK_SHA" ]]; then
+            echo "Failed to find fork commit"
             exit 1
           fi
 
           # Define the custom tag using the short SHA
-          CUSTOM_TAG="master-${UPSTREAM_SHA}"
+          CUSTOM_TAG="master-${FORK_SHA}"
           
           # Check if we've already built this commit
           if git ls-remote --tags origin | grep -q -e "$CUSTOM_TAG"; then
