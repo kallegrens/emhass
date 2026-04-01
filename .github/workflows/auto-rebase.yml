@@ -28,6 +28,8 @@ jobs:
 
       - name: Find Latest Release and Rebase
         id: sync
+        env:
+          GH_TOKEN: ${{ secrets.PAT_TOKEN || github.token }}
         run: |
           # Find the latest stable tag from upstream
           LATEST_TAG=$(git ls-remote --tags --refs --sort='-v:refname' upstream | grep -v -E 'beta|rc' | head -n1 | awk -F/ '{print $3}')
@@ -49,6 +51,10 @@ jobs:
           # Perform the rebase of our custom commits on top of upstream's latest tag
           # Assuming our custom commits are on the default branch (e.g., 'main' or 'master')
           git rebase $LATEST_TAG
+          
+          # Set the authenticating URL for the push
+          git remote set-url origin https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}.git
+          
           git push --force-with-lease origin HEAD
           
           # Tag the release for our fork
