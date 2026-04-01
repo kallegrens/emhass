@@ -29,12 +29,17 @@ jobs:
         id: sync
         run: |
           # Find the latest stable tag from upstream
-          LATEST_TAG=$(git ls-remote --tags --refs upstream --sort='-v:refname' | grep -v 'beta\|rc' | head -n1 | awk -F/ '{print $3}')
+          LATEST_TAG=$(git ls-remote --tags --refs --sort='-v:refname' upstream | grep -v -E 'beta|rc' | head -n1 | awk -F/ '{print $3}')
           echo "Latest upstream tag: $LATEST_TAG"
+          
+          if [[ -z "$LATEST_TAG" ]]; then
+            echo "Failed to define latest upstream tag"
+            exit 1
+          fi
           
           # Check if we've already built this tag (by checking if our custom tag exists)
           CUSTOM_TAG="${LATEST_TAG}-custom"
-          if git ls-remote --tags origin | grep -q "$CUSTOM_TAG"; then
+          if git ls-remote --tags origin | grep -q -e "$CUSTOM_TAG"; then
             echo "Already synced and released $CUSTOM_TAG. Skipping."
             echo "updated=false" >> $GITHUB_OUTPUT
             exit 0
