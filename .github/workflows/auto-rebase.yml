@@ -2,7 +2,7 @@ name: Auto Rebase and Publish to GHCR
 
 on:
   schedule:
-    - cron: '0 2 * * *' # Check daily at 02:00 UTC
+    - cron: "0 2 * * *" # Check daily at 02:00 UTC
   workflow_dispatch: # Allow manual triggering
 
 jobs:
@@ -11,14 +11,14 @@ jobs:
     permissions: # Need write access to push code and publish GHCR packages
       contents: write
       packages: write
-      
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
           fetch-depth: 0 # Need full history to perform rebase
           token: ${{ secrets.PAT_TOKEN }}
-          
+
       - name: Verify PAT
         run: |
           if [ -z "${{ secrets.PAT_TOKEN }}" ]; then
@@ -32,43 +32,44 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git remote add upstream https://github.com/davidusb-geek/emhass.git
-          git fetch upstream --tags
+          git fetch upstream master
 
-      - name: Find Latest Release and Rebase
+      - name: Find Latest Commit and Rebase
         id: sync
         env:
           GH_TOKEN: ${{ secrets.PAT_TOKEN }}
         run: |
-          # Find the latest stable tag from upstream
-          LATEST_TAG=$(git ls-remote --tags --refs --sort='-v:refname' upstream | grep -v -E 'beta|rc' | head -n1 | awk -F/ '{print $3}')
-          echo "Latest upstream tag: $LATEST_TAG"
-          
-          if [[ -z "$LATEST_TAG" ]]; then
-            echo "Failed to define latest upstream tag"
+          # Find the latest commit sha from upstream master
+          UPSTREAM_SHA=$(git rev-parse --short upstream/master)
+          echo "Latest upstream commit SHA: $UPSTREAM_SHA"
+
+          if [[ -z "$UPSTREAM_SHA" ]]; then
+            echo "Failed to find upstream commit"
             exit 1
           fi
+
+          # Define the custom tag using the short SHA
+          CUSTOM_TAG="master-${UPSTREAM_SHA}"
           
-          # Check if we've already built this tag (by checking if our custom tag exists)
-          CUSTOM_TAG="${LATEST_TAG}-custom"
+          # Check if we've already built this commit
           if git ls-remote --tags origin | grep -q -e "$CUSTOM_TAG"; then
             echo "Already synced and released $CUSTOM_TAG. Skipping."
             echo "updated=false" >> $GITHUB_OUTPUT
             exit 0
           fi
-          
-          # Perform the rebase of our custom commits on top of upstream's latest tag
-          # Assuming our custom commits are on the default branch (e.g., 'main' or 'master')
-          git rebase $LATEST_TAG
-          
+
+          # Perform the rebase of our custom commits on top of upstream master
+          git rebase upstream/master
+
           # Set the authenticating URL for the push
           git remote set-url origin https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}.git
-          
+
           git push --force-with-lease origin HEAD
-          
+
           # Tag the release for our fork
           git tag $CUSTOM_TAG
           git push origin $CUSTOM_TAG
-          
+
           echo "updated=true" >> $GITHUB_OUTPUT
           echo "tag=$CUSTOM_TAG" >> $GITHUB_OUTPUT
 
@@ -79,7 +80,7 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.PAT_TOKEN }}
-          
+
       - name: Extract metadata
         if: steps.sync.outputs.updated == 'true'
         id: meta
