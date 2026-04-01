@@ -1,0 +1,84 @@
+name: Auto Rebase and Publish to GHCR
+
+on:
+  schedule:
+    - cron: '0 2 * * *' # Check daily at 02:00 UTC
+  workflow_dispatch: # Allow manual triggering
+
+jobs:
+  rebase-build-push:
+    runs-on: ubuntu-latest
+    permissions: # Need write access to push code and publish GHCR packages
+      contents: write
+      packages: write
+      
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # Need full history to perform rebase
+          
+      - name: Configure Git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git remote add upstream https://github.com/davidusb-geek/emhass.git
+          git fetch upstream --tags
+
+      - name: Find Latest Release and Rebase
+        id: sync
+        run: |
+          # Find the latest stable tag from upstream
+          LATEST_TAG=$(git ls-remote --tags --refs upstream --sort='-v:refname' | grep -v 'beta\|rc' | head -n1 | awk -F/ '{print $3}')
+          echo "Latest upstream tag: $LATEST_TAG"
+          
+          # Check if we've already built this tag (by checking if our custom tag exists)
+          CUSTOM_TAG="${LATEST_TAG}-custom"
+          if git ls-remote --tags origin | grep -q "$CUSTOM_TAG"; then
+            echo "Already synced and released $CUSTOM_TAG. Skipping."
+            echo "updated=false" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          
+          # Perform the rebase of our custom commits on top of upstream's latest tag
+          # Assuming our custom commits are on the default branch (e.g., 'main' or 'master')
+          git rebase $LATEST_TAG
+          git push --force-with-lease origin HEAD
+          
+          # Tag the release for our fork
+          git tag $CUSTOM_TAG
+          git push origin $CUSTOM_TAG
+          
+          echo "updated=true" >> $GITHUB_OUTPUT
+          echo "tag=$CUSTOM_TAG" >> $GITHUB_OUTPUT
+
+      - name: Log in to the Container registry
+        if: steps.sync.outputs.updated == 'true'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+          
+      - name: Extract metadata
+        if: steps.sync.outputs.updated == 'true'
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository }}
+          tags: |
+            type=raw,value=${{ steps.sync.outputs.tag }}
+            type=raw,value=latest
+
+      - name: Set up Docker Buildx
+        if: steps.sync.outputs.updated == 'true'
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and push
+        if: steps.sync.outputs.updated == 'true'
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
