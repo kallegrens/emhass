@@ -404,14 +404,9 @@ class Forecast:
         if os.path.isfile(w_forecast_cache_path):
             return await self.get_cached_forecast_data(w_forecast_cache_path)
         if self.params["passed_data"].get("weather_forecast_cache_only", False):
-            self.logger.error("Unable to obtain Solcast cache file.")
-            self.logger.error(
-                "Try running optimization again with 'weather_forecast_cache_only': false"
-            )
-            self.logger.error(
-                "Optionally, obtain new Solcast cache with runtime parameter 'weather_forecast_cache': true."
-            )
-            return False
+            self.logger.warning("Solcast cache file missing or deleted due to being out of date.")
+            self.logger.warning("Bypassing 'weather_forecast_cache_only' flag to fetch and cache a fresh forecast.")
+            # Do NOT return False. We'll let execution continue below to fetch normally.
         if "solcast_api_key" not in self.retrieve_hass_conf:
             self.logger.error("The solcast_api_key parameter was not defined")
             return False
@@ -472,7 +467,9 @@ class Forecast:
                         total_data = total_data + data_tmp
 
         data = total_data
-        if self.params["passed_data"].get("weather_forecast_cache", False):
+        if self.params["passed_data"].get(
+            "weather_forecast_cache", False
+        ) or self.params["passed_data"].get("weather_forecast_cache_only", False):
             data = await self.set_cached_forecast_data(w_forecast_cache_path, data)
         return data
 
