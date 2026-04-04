@@ -2265,6 +2265,20 @@ class Optimization:
         def_start_timestep = pad_list(def_start_timestep, num_deferrable_loads)
         def_end_timestep = pad_list(def_end_timestep, num_deferrable_loads)
 
+        # Physical guardrail: PV forecast cannot be negative.
+        # Negative values can appear from regression-based adjusted PV tails.
+        p_pv = np.asarray(p_pv, dtype=float)
+        neg_mask = p_pv < 0
+        if np.any(neg_mask):
+            n_neg = int(np.sum(neg_mask))
+            min_neg = float(np.min(p_pv[neg_mask]))
+            self.logger.warning(
+                "PV forecast contains %s negative value(s), min=%.2f W. Clipping to 0 W before optimization.",
+                n_neg,
+                min_neg,
+            )
+            p_pv = np.clip(p_pv, 0.0, None)
+
         # Parameter Updates
         self.param_pv_forecast.value = p_pv
         self.param_load_forecast.value = p_load
