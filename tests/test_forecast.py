@@ -35,6 +35,13 @@ emhass_conf["associations_path"] = emhass_conf["root_path"] / "data/associations
 logger, ch = utils.get_logger(__name__, emhass_conf, save_to_file=False)
 
 
+class _DummyNegativePVRegressor:
+    """Simple regressor used to force negative adjusted PV predictions in tests."""
+
+    def predict(self, X):
+        return np.full(len(X), -500.0)
+
+
 class TestForecast(unittest.IsolatedAsyncioTestCase):
     @staticmethod
     async def get_test_params():
@@ -230,6 +237,19 @@ class TestForecast(unittest.IsolatedAsyncioTestCase):
         #     template='presentation'
         # )
         # fig.show()
+
+    async def test_adjust_pv_forecast_predict_clips_negative_outputs(self):
+        self.fcst.model_adjust_pv = _DummyNegativePVRegressor()
+        idx = self.fcst.forecast_dates[:8]
+        forecasted_pv = pd.DataFrame({"forecast": np.zeros(len(idx))}, index=idx)
+
+        adjusted = self.fcst.adjust_pv_forecast_predict(forecasted_pv=forecasted_pv)
+
+        self.assertIn("adjusted_forecast", adjusted.columns)
+        self.assertTrue(
+            (adjusted["adjusted_forecast"] >= 0).all(),
+            "Adjusted PV forecast should never contain negative values",
+        )
 
     # Test output weather forecast using openmeteo with mock get request data
     async def test_get_weather_forecast_openmeteo_method_mock(self):
