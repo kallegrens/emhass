@@ -1022,10 +1022,8 @@ class Forecast:
             n_neg = int(neg_mask.sum())
             min_neg = float(forecast_data.loc[neg_mask, "adjusted_forecast"].min())
             self.logger.warning(
-                "Adjusted PV forecast produced %s negative value(s), min=%.2f W. "
-                "Clipping adjusted forecast to 0 W.",
-                n_neg,
-                min_neg,
+                f"Adjusted PV forecast produced {n_neg} negative value(s), "
+                f"min={min_neg:.2f} W. Clipping adjusted forecast to 0 W."
             )
             forecast_data.loc[neg_mask, "adjusted_forecast"] = 0.0
 
