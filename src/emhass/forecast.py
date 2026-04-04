@@ -1027,6 +1027,23 @@ class Forecast:
                 return row["adjusted_forecast"]
 
         forecast_data["adjusted_forecast"] = forecast_data.apply(apply_weighting, axis=1)
+
+        # Physical guardrail: PV forecast cannot be negative.
+        neg_mask = forecast_data["adjusted_forecast"] < 0
+        if neg_mask.any():
+            n_neg = int(neg_mask.sum())
+            min_neg = float(forecast_data.loc[neg_mask, "adjusted_forecast"].min())
+            self.logger.warning(
+                "Adjusted PV forecast produced %s negative value(s), min=%.2f W. "
+                "Clipping adjusted forecast to 0 W.",
+                n_neg,
+                min_neg,
+            )
+            forecast_data.loc[neg_mask, "adjusted_forecast"] = 0.0
+
+        # Final idempotent clamp to ensure physical consistency.
+        forecast_data["adjusted_forecast"] = forecast_data["adjusted_forecast"].clip(lower=0.0)
+
         # If using validation data, calculate validation metrics
         if forecasted_pv is None:
             y_true = self.p_pv_validation.values
