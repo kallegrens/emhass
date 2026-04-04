@@ -2273,9 +2273,8 @@ class Optimization:
             n_neg = int(np.sum(neg_mask))
             min_neg = float(np.min(p_pv[neg_mask]))
             self.logger.warning(
-                "PV forecast contains %s negative value(s), min=%.2f W. Clipping to 0 W before optimization.",
-                n_neg,
-                min_neg,
+                f"PV forecast contains {n_neg} negative value(s), min={min_neg:.2f} W. "
+                "Clipping to 0 W before optimization."
             )
             p_pv = np.clip(p_pv, 0.0, None)
 
